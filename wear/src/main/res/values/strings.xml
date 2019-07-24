@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">byNaoyaGwatch</string>
+    <string name="hello_round">now round test...</string>
+    <string name="hello_square">now square test...</string>
+</resources>
