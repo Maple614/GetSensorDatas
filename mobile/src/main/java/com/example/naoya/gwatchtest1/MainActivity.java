@@ -4,9 +4,15 @@ import android.Manifest;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.pm.PackageManager;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
@@ -23,12 +29,15 @@ import com.google.android.gms.wearable.Wearable;
 
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-public class MainActivity extends Activity implements GoogleApiClient.ConnectionCallbacks, MessageApi.MessageListener {
+public class MainActivity extends Activity implements GoogleApiClient.ConnectionCallbacks, MessageApi.MessageListener, SensorEventListener {
     private  static final String TAG = MainActivity.class.getName();
     private  GoogleApiClient mGoogleApiClient;
     TextView a_xTextView;
@@ -38,6 +47,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
     TextView g_yTextView;
     TextView g_zTextView;
     TextView line;
+    TextView d_TTextView;
     int count;
 
     Button stopButton;
@@ -52,12 +62,34 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
     double acc=0;
     boolean start=false,stop=false;
 
+    long deltaTime;
+    TextView ap_text;
+    private SensorManager mSensorManager_ap;
+    BufferedWriter bw_sp;
+    FileOutputStream fileOutputStream_sp;
+    OutputStreamWriter outputStreamWriter_sp;
+    String savedata_sp = "AP_TimeStamp,pressure\n";
+    boolean startFlag = false;
+
+
+
     String savedata="Acc_TimeStamp,AccX,AccY,AccZ,Gyro_TimeStamp,GyroX,GyroY,GyroZ\n";
     private final int EXTERNAL_STORAGE_REQUEST_CODE = 1;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        deltaTime("ntp.nict.jp",10000);
+        try{
+
+            Thread.sleep(5000); //3000ミリ秒Sleepする
+
+        }catch(InterruptedException e){}
+
+        d_TTextView = (TextView)findViewById(R.id.textView2);
+        d_TTextView.setText(String.valueOf(deltaTime));
+
         // Keep screen on
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         acctimestampTextView = (TextView)findViewById(R.id.acc_timestamp);
@@ -76,6 +108,10 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
         count = 0;
 
         stopButton = (Button)findViewById(R.id.stop);
+
+        ap_text = (TextView)findViewById(R.id.textView3);
+        mSensorManager_ap = (SensorManager)getSystemService(SENSOR_SERVICE);
+
     }
 
     // Permissionの確認
@@ -104,7 +140,21 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
 
             }
         }
-    }    @Override
+    }
+
+    boolean resumeFlag = true;
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (resumeFlag) {
+            Sensor sensor_ap = mSensorManager_ap.getDefaultSensor(Sensor.TYPE_PRESSURE);
+            mSensorManager_ap.registerListener(this, sensor_ap, SensorManager.SENSOR_DELAY_NORMAL);
+
+            resumeFlag = false;
+        }
+    }
+
+    @Override
     protected void onStart() {
         super.onStart();
 
@@ -196,12 +246,29 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
         File file = new File(filePath);
         file.getParentFile().mkdir();
 
+        String filePath_smartphone =
+                Environment.getExternalStorageDirectory().getPath()
+                        + "/" + sdf.format(d) + "_smartphone_" + editText.getText() + ".csv";
+
+        File file_smartphone = new File (filePath_smartphone);
+        file_smartphone.getParentFile().mkdir();
+
         try {
             fileOutputStream = new FileOutputStream(file, true);
+            fileOutputStream_sp = new FileOutputStream(file_smartphone,true);
+
             outputStreamWriter
                     = new OutputStreamWriter(fileOutputStream, "UTF-8");
+            outputStreamWriter_sp
+                    = new OutputStreamWriter(fileOutputStream_sp, "UTF-8");
+
+
             bw = new BufferedWriter(outputStreamWriter);
             bw.write(savedata);
+
+            bw_sp = new BufferedWriter(outputStreamWriter_sp);
+            bw_sp.write(savedata_sp);
+
             acctimestampTextView.setText("接続状態：ファイル作成完了");
 
         } catch (Exception e) {
@@ -222,6 +289,8 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
                 .build();
 
         mGoogleApiClient.connect();
+
+        startFlag = true;
     }
 
     public void stopClicked(View view){
@@ -232,7 +301,14 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
             bw.close();
             outputStreamWriter.close();
             fileOutputStream.close();
-            acctimestampTextView.setText("接続状態：SAVED");
+
+           bw_sp.flush();
+           bw_sp.close();
+           outputStreamWriter_sp.close();
+           fileOutputStream_sp.close();
+            startFlag = false;
+
+           acctimestampTextView.setText("接続状態：SAVED");
             // text = "saved";
         } catch (Exception e) {
             // text = "error: FileOutputStream";
@@ -241,8 +317,82 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
         }
         // textView.setText(text);
         // text = "";
+    }
 
+    float ap_val = 0;
+    String data_sp;
+    long ap_time = 0L;
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+
+        if(startFlag){
+            if (event.sensor.getType() == Sensor.TYPE_PRESSURE) {// air pressure
+                ap_val = event.values[0];
+
+                // 取得した気圧をログに出力する
+                Log.d("**pressure", "気圧=" + ap_val + "hPa");
+                ap_text.setText(String.valueOf(ap_val));
+
+                //pseudo time
+                ap_time = System.currentTimeMillis()+deltaTime;;
+                data_sp = ap_time+","+ap_val+"\n";
+                try {
+                    bw_sp.write(data_sp);
+                } catch (UnsupportedEncodingException k) {
+
+                    k.printStackTrace();
+
+                } catch (FileNotFoundException k) {
+
+                    k.printStackTrace();
+
+                } catch (IOException k) {
+
+                    k.printStackTrace();
+
+                }
+
+            }
+        }
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
 
     }
 
+
+    public void deltaTime(String url,int timeout) {
+        final String myUrl = url;
+        final int myTimeout = timeout;
+        new AsyncTask<Void, Void, String>() {
+
+            @Override
+            protected String doInBackground(Void... voids) {
+                long ntpTime = 0L;
+                long deviceTime = 0L;
+                SntpClient sntp = new SntpClient();
+                System.out.println(myUrl + "," + myTimeout);
+
+                if (sntp.requestTime(myUrl, myTimeout)) {
+                    ntpTime = sntp.getNtpTime() + SystemClock.elapsedRealtime() - sntp.getNtpTimeReference();
+                    deviceTime = System.currentTimeMillis();
+                }
+
+                System.out.println("NTP: " + ntpTime);
+                System.out.println("device: " + deviceTime);
+
+                deltaTime = ntpTime - deviceTime;
+                System.out.println("delta: " + deltaTime);
+
+
+                return String.valueOf(ntpTime);
+            }
+
+            @Override
+            protected void onPostExecute(String result) {
+                // Log.d(TAG,result);
+            }
+        }.execute();
+    }
 }
