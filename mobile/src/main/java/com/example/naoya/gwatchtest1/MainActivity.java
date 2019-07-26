@@ -3,16 +3,24 @@ package com.example.naoya.gwatchtest1;
 import android.Manifest;
 import android.annotation.TargetApi;
 import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
+import android.location.LocationProvider;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.SystemClock;
+import android.provider.Settings;
+import android.support.annotation.NonNull;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
@@ -37,15 +45,9 @@ import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-public class MainActivity extends Activity implements GoogleApiClient.ConnectionCallbacks, MessageApi.MessageListener, SensorEventListener {
+public class MainActivity extends Activity implements GoogleApiClient.ConnectionCallbacks, MessageApi.MessageListener, SensorEventListener, LocationListener {
     private  static final String TAG = MainActivity.class.getName();
     private  GoogleApiClient mGoogleApiClient;
-    TextView a_xTextView;
-    TextView a_yTextView;
-    TextView a_zTextView;
-    TextView g_xTextView;
-    TextView g_yTextView;
-    TextView g_zTextView;
     TextView line;
     TextView d_TTextView;
     int count;
@@ -53,28 +55,41 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
     Button stopButton;
 
     EditText editText;
-    TextView acctimestampTextView,geotimestampTextView;
+    TextView acctimestampTextView;
     Date d;
     SimpleDateFormat sdf;
-    BufferedWriter bw;
-    FileOutputStream fileOutputStream;
-    OutputStreamWriter outputStreamWriter;
+
+    BufferedWriter bw_WA,bw_WG,bw_SA,bw_SG,bw_HR,bw_AP,bw_GPS;
+
+    FileOutputStream fileOutputStream_WA,fileOutputStream_WG,fileOutputStream_SA,
+            fileOutputStream_SG,fileOutputStream_HR,fileOutputStream_AP,fileOutputStream_GPS;
+
+    OutputStreamWriter outputStreamWriter_WA,outputStreamWriter_WG,outputStreamWriter_SA,
+            outputStreamWriter_SG,outputStreamWriter_HR,outputStreamWriter_AP,outputStreamWriter_GPS;
+
+    String savedata_WA="Acc_TimeStamp,AccX,AccY,AccZ\n",
+            savedata_WG="Gyro_TimeStamp,GyroX,GyroY,GyroZ\n",
+            savedata_SA="Acc_TimeStamp,AccX,AccY,AccZ\n",
+            savedata_SG="Gyro_TimeStamp,GyroX,GyroY,GyroZ\n",
+            savedata_HR="HB_TimeStamp,HeartRate\n",
+            savedata_AP="AP_TimeStamp,pressure\n",
+            savedata_GPS="GPS_TimeStamp,latitude,longtitude\n";
+
     double acc=0;
     boolean start=false,stop=false;
 
     long deltaTime;
     TextView ap_text;
-    private SensorManager mSensorManager_ap;
-    BufferedWriter bw_sp;
-    FileOutputStream fileOutputStream_sp;
-    OutputStreamWriter outputStreamWriter_sp;
-    String savedata_sp = "AP_TimeStamp,pressure\n";
+    TextView lat_text, long_text;
+
+    private SensorManager mSensorManager_ap, mSensorManager_Accel, mSensorManager_Gyro;
+    private LocationManager mlocationManager;
+
     boolean startFlag = false;
 
-
-
-    String savedata="Acc_TimeStamp,AccX,AccY,AccZ,Gyro_TimeStamp,GyroX,GyroY,GyroZ\n";
     private final int EXTERNAL_STORAGE_REQUEST_CODE = 1;
+    private final int ACCESS_COARSE_LOCATION_REQUEST_CODE = 1;
+    private final int ACCESS_FINE_LOCATION_REQUEST_CODE = 1;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -93,13 +108,6 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
         // Keep screen on
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         acctimestampTextView = (TextView)findViewById(R.id.acc_timestamp);
-//        geotimestampTextView = (TextView)findViewById(R.id.geo_timestamp);
-//        a_xTextView = (TextView)findViewById(R.id.a_xValue);
-//        a_yTextView = (TextView)findViewById(R.id.a_yValue);
-//        a_zTextView = (TextView)findViewById(R.id.a_zValue);
-//        g_xTextView = (TextView)findViewById(R.id.g_xValue);
-//        g_yTextView = (TextView)findViewById(R.id.g_yValue);
-//        g_zTextView = (TextView)findViewById(R.id.g_zValue);
         editText=(EditText)findViewById(R.id.editText);
         editText.setText("_");
         d = new Date(System.currentTimeMillis());
@@ -109,8 +117,16 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
 
         stopButton = (Button)findViewById(R.id.stop);
 
+        mSensorManager_Accel = (SensorManager)getSystemService(SENSOR_SERVICE);
+        mSensorManager_Gyro = (SensorManager)getSystemService(SENSOR_SERVICE);
+
         ap_text = (TextView)findViewById(R.id.textView3);
         mSensorManager_ap = (SensorManager)getSystemService(SENSOR_SERVICE);
+
+        lat_text = (TextView)findViewById(R.id.lat_text);
+        long_text = (TextView)findViewById(R.id.long_text);
+        mlocationManager = (LocationManager)getSystemService(LOCATION_SERVICE);
+
 
     }
 
@@ -118,7 +134,16 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
     @TargetApi(Build.VERSION_CODES.M)
     public void checkPermission() {
         // 既に許可している
-        if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)== PackageManager.PERMISSION_GRANTED) {
+        if ((checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)== PackageManager.PERMISSION_GRANTED)&&(checkSelfPermission(
+                Manifest.permission.ACCESS_FINE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED &&
+                checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
+                        == PackageManager.PERMISSION_GRANTED)) {
+            locationStart();
+            mlocationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,1000, 1, this);
+            Location location = mlocationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+            Log.d("location",String.valueOf(location));
+
             return;
         }
         // 許可していない場合、パーミッションの取得を行う
@@ -127,17 +152,30 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
             Toast.makeText(this, "ファイル書き込みのために許可してください", Toast.LENGTH_SHORT).show();
         }
         // パーミッションの取得を依頼
-        requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, EXTERNAL_STORAGE_REQUEST_CODE);
+        requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE,Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION}, EXTERNAL_STORAGE_REQUEST_CODE);
+//        requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, ACCESS_FINE_LOCATION_REQUEST_CODE);
+//        requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION}, ACCESS_COARSE_LOCATION_REQUEST_CODE);
+        locationStart();
+        mlocationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,1000, 1, this);
+        Location location = mlocationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+        Log.d("location",String.valueOf(location));
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           String[] permissions,
-                                           int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         if (requestCode == EXTERNAL_STORAGE_REQUEST_CODE) {
             if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 // 許可された。
-
+            }
+        }
+        if (requestCode == ACCESS_FINE_LOCATION_REQUEST_CODE) {
+            if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // 許可された。
+            }
+        }
+        if (requestCode == ACCESS_COARSE_LOCATION_REQUEST_CODE) {
+            if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // 許可された。
             }
         }
     }
@@ -147,6 +185,12 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
     protected void onResume() {
         super.onResume();
         if (resumeFlag) {
+            Sensor sensor_Accel = mSensorManager_Accel.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+            mSensorManager_Accel.registerListener(this, sensor_Accel, SensorManager.SENSOR_DELAY_NORMAL);
+
+            Sensor sensor_Gyro = mSensorManager_Gyro.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+            mSensorManager_Gyro.registerListener(this, sensor_Gyro, SensorManager.SENSOR_DELAY_NORMAL);
+
             Sensor sensor_ap = mSensorManager_ap.getDefaultSensor(Sensor.TYPE_PRESSURE);
             mSensorManager_ap.registerListener(this, sensor_ap, SensorManager.SENSOR_DELAY_NORMAL);
 
@@ -194,31 +238,25 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
         if ("" != values[0]&&stop==false) acctimestampTextView.setText("接続状態：OK");
         else if(""==values[0]&&stop==false) acctimestampTextView.setText("接続状態：未接続");
 
-            Log.d(TAG, "onMessageReceived : " + messageEvent.getPath());
+            //Log.d(TAG, "onMessageReceived : " + messageEvent.getPath());
             acctimestampTextView.setText("接続状態：データ取得中");
-
-            //acc_t+","+a_x+","+a_y+","+a_z+","+geo_t+","+g_x+","+g_y+","+g_z
-            //a_xTextView.setText(String.valueOf(values[1]));
-            //a_yTextView.setText(String.valueOf(values[2]));
-            //a_zTextView.setText(String.valueOf(values[3]));
-            //        g_xTextView.setText(String.valueOf(values[5]));
-            //        g_yTextView.setText(String.valueOf(values[6]));
-            //        g_zTextView.setText(String.valueOf(values[7]));
 
             SimpleDateFormat sdf_local = new SimpleDateFormat(TIME_FORMAT);
             Long acc_timestamp_local = new Long(values[0]);
-            //Long geo_timestamp_local = new Long(values[4]);
-            //acctimestampTextView.setText(sdf_local.format(acc_timestamp_local.longValue()));
-
-            //geotimestampTextView.setText(sdf_local.format(geo_timestamp_local.longValue()));
-
-            //String str_data = String.valueOf(values[0]) + "," + sdf_local.format(acc_timestamp_local.longValue()) + "," + String.valueOf(values[1]) + "," + String.valueOf(values[2]) + ","
-                    //+ String.valueOf(values[3]) + "\n";//+","+String.valueOf(values[4])+","+sdf_local.format(geo_timestamp_local.longValue())+","+String.valueOf(values[5])+","+String.valueOf(values[6])+","+String.valueOf(values[7])+"\n";
-
-            //加速度の大きさを計算
-            //acc = Math.sqrt(Double.parseDouble(values[1]) * Double.parseDouble(values[1]) + Double.parseDouble(values[2]) * Double.parseDouble(values[2]) + Double.parseDouble(values[3]) * Double.parseDouble(values[3]));
         try{
-            bw.write(msg+"\n");
+            bw_WA.write(values[0]+","+values[1]+","+values[2]+","+values[3]+"\n");
+        }catch (Exception e) {
+            // text = "error: FileOutputStream";
+            e.printStackTrace();
+        }
+        try{
+            bw_WG.write(values[4]+","+values[5]+","+values[6]+","+values[7]+"\n");
+        }catch (Exception e) {
+            // text = "error: FileOutputStream";
+            e.printStackTrace();
+        }
+        try{
+            bw_HR.write(values[8]+","+values[9]+"\n");
         }catch (Exception e) {
             // text = "error: FileOutputStream";
             e.printStackTrace();
@@ -238,36 +276,84 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
 
     public void startClicked(View view){
         checkPermission();
-        count=0;
-        String filePath =
-                Environment.getExternalStorageDirectory().getPath()
-                        + "/" + sdf.format(d) + "_gwatch_wrist" + editText.getText() + ".csv";
-        System.out.println("debug:" + filePath);
-        File file = new File(filePath);
-        file.getParentFile().mkdir();
 
-        String filePath_smartphone =
+        String filePath_WA =
                 Environment.getExternalStorageDirectory().getPath()
-                        + "/" + sdf.format(d) + "_smartphone_" + editText.getText() + ".csv";
+                        + "/" + sdf.format(d) + "_Watch_Accel" + editText.getText() + ".csv";
+        File file_WA = new File(filePath_WA);
+        file_WA.getParentFile().mkdir();
 
-        File file_smartphone = new File (filePath_smartphone);
-        file_smartphone.getParentFile().mkdir();
+        String filePath_WG =
+                Environment.getExternalStorageDirectory().getPath()
+                        + "/" + sdf.format(d) + "_Watch_Gyro" + editText.getText() + ".csv";
+        File file_WG = new File(filePath_WG);
+        file_WG.getParentFile().mkdir();
+
+        String filePath_SA =
+                Environment.getExternalStorageDirectory().getPath()
+                        + "/" + sdf.format(d) + "_Phone_Accel" + editText.getText() + ".csv";
+        File file_SA = new File(filePath_SA);
+        file_SA.getParentFile().mkdir();
+
+        String filePath_SG =
+                Environment.getExternalStorageDirectory().getPath()
+                        + "/" + sdf.format(d) + "_Phone_Gyro" + editText.getText() + ".csv";
+        File file_SG = new File(filePath_SG);
+        file_SG.getParentFile().mkdir();
+
+        String filePath_HR =
+                Environment.getExternalStorageDirectory().getPath()
+                        + "/" + sdf.format(d) + "_HeartRate" + editText.getText() + ".csv";
+        File file_HR = new File(filePath_HR);
+        file_HR.getParentFile().mkdir();
+
+        String filePath_GPS =
+                Environment.getExternalStorageDirectory().getPath()
+                        + "/" + sdf.format(d) + "_GPS" + editText.getText() + ".csv";
+        File file_GPS = new File(filePath_GPS);
+        file_GPS.getParentFile().mkdir();
+
+        String filePath_smartphone_ap =
+                Environment.getExternalStorageDirectory().getPath()
+                        + "/" + sdf.format(d) + "_smartphone_ap_" + editText.getText() + ".csv";
+
+        File file_smartphone_ap = new File (filePath_smartphone_ap);
+        file_smartphone_ap.getParentFile().mkdir();
+
+
 
         try {
-            fileOutputStream = new FileOutputStream(file, true);
-            fileOutputStream_sp = new FileOutputStream(file_smartphone,true);
+            fileOutputStream_WA = new FileOutputStream(file_WA, true);
+            fileOutputStream_WG = new FileOutputStream(file_WG, true);
+            fileOutputStream_SA = new FileOutputStream(file_SA, true);
+            fileOutputStream_SG = new FileOutputStream(file_SG, true);
+            fileOutputStream_HR = new FileOutputStream(file_HR, true);
+            fileOutputStream_AP = new FileOutputStream(file_smartphone_ap,true);
+            fileOutputStream_GPS = new FileOutputStream(file_GPS, true);
 
-            outputStreamWriter
-                    = new OutputStreamWriter(fileOutputStream, "UTF-8");
-            outputStreamWriter_sp
-                    = new OutputStreamWriter(fileOutputStream_sp, "UTF-8");
+            outputStreamWriter_WA = new OutputStreamWriter(fileOutputStream_WA, "UTF-8");
+            outputStreamWriter_WG = new OutputStreamWriter(fileOutputStream_WG, "UTF-8");
+            outputStreamWriter_SA = new OutputStreamWriter(fileOutputStream_SA, "UTF-8");
+            outputStreamWriter_SG = new OutputStreamWriter(fileOutputStream_SG, "UTF-8");
+            outputStreamWriter_HR = new OutputStreamWriter(fileOutputStream_HR, "UTF-8");
+            outputStreamWriter_AP = new OutputStreamWriter(fileOutputStream_AP, "UTF-8");
+            outputStreamWriter_GPS = new OutputStreamWriter(fileOutputStream_GPS, "UTF-8");
 
 
-            bw = new BufferedWriter(outputStreamWriter);
-            bw.write(savedata);
-
-            bw_sp = new BufferedWriter(outputStreamWriter_sp);
-            bw_sp.write(savedata_sp);
+            bw_WA = new BufferedWriter(outputStreamWriter_WA);
+            bw_WA.write(savedata_WA);
+            bw_WG = new BufferedWriter(outputStreamWriter_WG);
+            bw_WG.write(savedata_WG);
+            bw_SA = new BufferedWriter(outputStreamWriter_SA);
+            bw_SA.write(savedata_SA);
+            bw_SG = new BufferedWriter(outputStreamWriter_SG);
+            bw_SG.write(savedata_SG);
+            bw_HR = new BufferedWriter(outputStreamWriter_HR);
+            bw_HR.write(savedata_HR);
+            bw_AP = new BufferedWriter(outputStreamWriter_AP);
+            bw_AP.write(savedata_AP);
+            bw_GPS = new BufferedWriter(outputStreamWriter_GPS);
+            bw_GPS.write(savedata_GPS);
 
             acctimestampTextView.setText("接続状態：ファイル作成完了");
 
@@ -289,24 +375,50 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
                 .build();
 
         mGoogleApiClient.connect();
-
         startFlag = true;
     }
 
     public void stopClicked(View view){
         mGoogleApiClient.disconnect();
        try {
-            acctimestampTextView.setText("接続状態：SAVING");
-            bw.flush();
-            bw.close();
-            outputStreamWriter.close();
-            fileOutputStream.close();
+           startFlag = false;
 
-           bw_sp.flush();
-           bw_sp.close();
-           outputStreamWriter_sp.close();
-           fileOutputStream_sp.close();
-            startFlag = false;
+            acctimestampTextView.setText("接続状態：SAVING");
+            bw_WA.flush();
+            bw_WA.close();
+            outputStreamWriter_WA.close();
+            fileOutputStream_WA.close();
+
+           bw_WG.flush();
+           bw_WG.close();
+           outputStreamWriter_WG.close();
+           fileOutputStream_WG.close();
+
+           bw_SA.flush();
+           bw_SA.close();
+           outputStreamWriter_SA.close();
+           fileOutputStream_SA.close();
+
+           bw_WG.flush();
+           bw_WG.close();
+           outputStreamWriter_WG.close();
+           fileOutputStream_WG.close();
+
+           bw_HR.flush();
+           bw_HR.close();
+           outputStreamWriter_HR.close();
+           fileOutputStream_HR.close();
+
+           bw_AP.flush();
+            bw_AP.close();
+            outputStreamWriter_AP.close();
+            fileOutputStream_AP.close();
+
+           bw_GPS.flush();
+           bw_GPS.close();
+           outputStreamWriter_GPS.close();
+           fileOutputStream_GPS.close();
+
 
            acctimestampTextView.setText("接続状態：SAVED");
             // text = "saved";
@@ -319,41 +431,157 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
         // text = "";
     }
 
-    float ap_val = 0;
-    String data_sp;
-    long ap_time = 0L;
+    float a_x=0,a_y=0,a_z=0,g_x=0,g_y=0,g_z=0,ap_val = 0;
+    String data_SA,data_SG,data_sp;
+    long a_time=0L,g_time=0L,ap_time = 0L;
     @Override
     public void onSensorChanged(SensorEvent event) {
 
         if(startFlag){
+            if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {// Accel
+                a_x = event.values[0];
+                a_y = event.values[1];
+                a_z = event.values[2];
+
+                //pseudo time
+                a_time = System.currentTimeMillis()+deltaTime;;
+                data_SA = a_time+","+a_x+","+a_y+","+a_z+"\n";
+
+                try {
+                    bw_SA.write(data_SA);
+                } catch (UnsupportedEncodingException k) {
+                    k.printStackTrace();
+                } catch (FileNotFoundException k) {
+                    k.printStackTrace();
+                } catch (IOException k) {
+                    k.printStackTrace();
+                }
+            }
+            if (event.sensor.getType() == Sensor.TYPE_GYROSCOPE) {// gyro
+                g_x = event.values[0];
+                g_y = event.values[1];
+                g_z = event.values[2];
+
+                //pseudo time
+                a_time = System.currentTimeMillis()+deltaTime;;
+                data_SG = g_time+","+g_x+","+g_y+","+g_z+"\n";
+                try {
+                    bw_SG.write(data_SG);
+                } catch (UnsupportedEncodingException k) {
+                    k.printStackTrace();
+                } catch (FileNotFoundException k) {
+                    k.printStackTrace();
+                } catch (IOException k) {
+                    k.printStackTrace();
+                }
+            }
             if (event.sensor.getType() == Sensor.TYPE_PRESSURE) {// air pressure
                 ap_val = event.values[0];
-
                 // 取得した気圧をログに出力する
-                Log.d("**pressure", "気圧=" + ap_val + "hPa");
+                //Log.d("**pressure", "気圧=" + ap_val + "hPa");
                 ap_text.setText(String.valueOf(ap_val));
-
                 //pseudo time
                 ap_time = System.currentTimeMillis()+deltaTime;;
                 data_sp = ap_time+","+ap_val+"\n";
                 try {
-                    bw_sp.write(data_sp);
+                    bw_AP.write(data_sp);
                 } catch (UnsupportedEncodingException k) {
-
                     k.printStackTrace();
-
                 } catch (FileNotFoundException k) {
-
                     k.printStackTrace();
-
                 } catch (IOException k) {
-
                     k.printStackTrace();
-
                 }
-
             }
         }
+    }
+
+    private void locationStart(){
+        Log.d("debug","locationStart()");
+
+        if (mlocationManager != null && mlocationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+            Log.d("debug", "location manager Enabled");
+        } else {
+            // GPSを設定するように促す
+            Intent settingsIntent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+            startActivity(settingsIntent);
+            Log.d("debug", "not gpsEnable, startActivity");
+        }
+    }
+
+
+    // 結果の受け取り
+    /*
+     * Android Quickstart:
+     * https://developers.google.com/sheets/api/quickstart/android
+     *
+     * Respond to requests for permissions at runtime for API 23 and above.
+     * @param requestCode The request code passed in
+     *     requestPermissions(android.app.Activity, String, int, String[])
+     * @param permissions The requested permissions. Never null.
+     * @param grantResults The grant results for the corresponding permissions
+     *     which is either PERMISSION_GRANTED or PERMISSION_DENIED. Never null.
+     */
+
+
+    @Override
+    public void onStatusChanged(String provider, int status, Bundle extras) {
+
+        switch (status) {
+            case LocationProvider.AVAILABLE:
+                Log.d("debug", "LocationProvider.AVAILABLE");
+                break;
+            case LocationProvider.OUT_OF_SERVICE:
+                Log.d("debug", "LocationProvider.OUT_OF_SERVICE");
+                break;
+            case LocationProvider.TEMPORARILY_UNAVAILABLE:
+                Log.d("debug", "LocationProvider.TEMPORARILY_UNAVAILABLE");
+                break;
+        }
+
+    }
+
+    double latitude=0,longtitude=0;
+    String data_GPS;
+    long GPS_time=0L;
+
+    @Override
+    public void onLocationChanged(Location location) {
+        latitude = location.getLatitude();
+        longtitude = location.getLatitude();
+
+        //pseudo time
+        GPS_time = System.currentTimeMillis()+deltaTime;;
+
+        // 緯度の表示
+        String str1 = "Latitude: "+latitude;
+        //Log.d("debug", "" + location.getLatitude());
+        lat_text.setText(str1);
+
+        // 経度の表示
+        String str2 = "Longtude: "+longtitude;
+        long_text.setText(str2);
+
+        data_GPS = GPS_time+","+latitude+","+longtitude+"\n";
+        try {
+            bw_GPS.write(data_SG);
+        } catch (UnsupportedEncodingException k) {
+            k.printStackTrace();
+        } catch (FileNotFoundException k) {
+            k.printStackTrace();
+        } catch (IOException k) {
+            k.printStackTrace();
+        }
+    }
+
+    @Override
+    public void onProviderEnabled(String provider) {
+
+    }
+
+    @Override
+    public void onProviderDisabled(String provider) {
+
     }
 
     @Override
