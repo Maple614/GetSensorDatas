@@ -186,13 +186,13 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
         super.onResume();
         if (resumeFlag) {
             Sensor sensor_Accel = mSensorManager_Accel.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-            mSensorManager_Accel.registerListener(this, sensor_Accel, SensorManager.SENSOR_DELAY_NORMAL);
+            mSensorManager_Accel.registerListener(this, sensor_Accel, SensorManager.SENSOR_DELAY_GAME);
 
             Sensor sensor_Gyro = mSensorManager_Gyro.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
-            mSensorManager_Gyro.registerListener(this, sensor_Gyro, SensorManager.SENSOR_DELAY_NORMAL);
+            mSensorManager_Gyro.registerListener(this, sensor_Gyro, SensorManager.SENSOR_DELAY_GAME);
 
             Sensor sensor_ap = mSensorManager_ap.getDefaultSensor(Sensor.TYPE_PRESSURE);
-            mSensorManager_ap.registerListener(this, sensor_ap, SensorManager.SENSOR_DELAY_NORMAL);
+            mSensorManager_ap.registerListener(this, sensor_ap, SensorManager.SENSOR_DELAY_GAME);
 
             resumeFlag = false;
         }
@@ -316,7 +316,6 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
         String filePath_smartphone_ap =
                 Environment.getExternalStorageDirectory().getPath()
                         + "/" + sdf.format(d) + "_smartphone_ap_" + editText.getText() + ".csv";
-
         File file_smartphone_ap = new File (filePath_smartphone_ap);
         file_smartphone_ap.getParentFile().mkdir();
 
@@ -380,8 +379,9 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
 
     public void stopClicked(View view){
         mGoogleApiClient.disconnect();
-       try {
-           startFlag = false;
+        startFlag = false;
+
+        try {
 
             acctimestampTextView.setText("接続状態：SAVING");
             bw_WA.flush();
@@ -399,8 +399,8 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
            outputStreamWriter_SA.close();
            fileOutputStream_SA.close();
 
-           bw_WG.flush();
-           bw_WG.close();
+           bw_SG.flush();
+           bw_SG.close();
            outputStreamWriter_WG.close();
            fileOutputStream_WG.close();
 
@@ -547,30 +547,32 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
 
     @Override
     public void onLocationChanged(Location location) {
-        latitude = location.getLatitude();
-        longtitude = location.getLatitude();
+        if(startFlag){
+            latitude = location.getLatitude();
+            longtitude = location.getLatitude();
 
-        //pseudo time
-        GPS_time = System.currentTimeMillis()+deltaTime;;
+            //pseudo time
+            GPS_time = System.currentTimeMillis()+deltaTime;;
 
-        // 緯度の表示
-        String str1 = "Latitude: "+latitude;
-        //Log.d("debug", "" + location.getLatitude());
-        lat_text.setText(str1);
+            // 緯度の表示
+            String str1 = "Latitude: "+latitude;
+            //Log.d("debug", "" + location.getLatitude());
+            lat_text.setText(str1);
 
-        // 経度の表示
-        String str2 = "Longtude: "+longtitude;
-        long_text.setText(str2);
+            // 経度の表示
+            String str2 = "Longtude: "+longtitude;
+            long_text.setText(str2);
 
-        data_GPS = GPS_time+","+latitude+","+longtitude+"\n";
-        try {
-            bw_GPS.write(data_SG);
-        } catch (UnsupportedEncodingException k) {
-            k.printStackTrace();
-        } catch (FileNotFoundException k) {
-            k.printStackTrace();
-        } catch (IOException k) {
-            k.printStackTrace();
+            data_GPS = GPS_time+","+latitude+","+longtitude+"\n";
+            try {
+                bw_GPS.write(data_SG);
+            } catch (UnsupportedEncodingException k) {
+                k.printStackTrace();
+            } catch (FileNotFoundException k) {
+                k.printStackTrace();
+            } catch (IOException k) {
+                k.printStackTrace();
+            }
         }
     }
 

@@ -168,13 +168,13 @@ public class WearMainActivity extends Activity implements SensorEventListener{
         super.onResume();
         if(resumeFlag) {
             Sensor sensor_a = mSensorManager_a.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-            mSensorManager_a.registerListener(this, sensor_a, SensorManager.SENSOR_DELAY_NORMAL);
+            mSensorManager_a.registerListener(this, sensor_a, SensorManager.SENSOR_DELAY_GAME);
 
             Sensor sensor_g = mSensorManager_g.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
-            mSensorManager_g.registerListener(this, sensor_g, SensorManager.SENSOR_DELAY_NORMAL);
+            mSensorManager_g.registerListener(this, sensor_g, SensorManager.SENSOR_DELAY_GAME);
 
             Sensor sensor_h = mSensorManager_h.getDefaultSensor(Sensor.TYPE_HEART_RATE);
-            mSensorManager_h.registerListener(this, sensor_h, SensorManager.SENSOR_DELAY_NORMAL);
+            mSensorManager_h.registerListener(this, sensor_h, SensorManager.SENSOR_DELAY_GAME);
 
             mGoogleApiClient.connect();
 
