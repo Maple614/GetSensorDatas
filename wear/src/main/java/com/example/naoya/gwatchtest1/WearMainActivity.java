@@ -57,6 +57,9 @@ public class WearMainActivity extends Activity implements SensorEventListener{
     private GoogleApiClient mGoogleApiClient;
     private String mNode;
     String data;
+    String accelData = "";
+    String gyroData = "";
+    String heartRateData = "";
     private TextView koki,heartrate_text;
     private float a_x,a_y,a_z,g_x,g_y,g_z,h_b;
     long deltaTime=0,adjustTime_a,adjustTime_g;
@@ -168,13 +171,13 @@ public class WearMainActivity extends Activity implements SensorEventListener{
         super.onResume();
         if(resumeFlag) {
             Sensor sensor_a = mSensorManager_a.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-            mSensorManager_a.registerListener(this, sensor_a, SensorManager.SENSOR_DELAY_GAME);
+            mSensorManager_a.registerListener(this, sensor_a, SensorManager.SENSOR_DELAY_NORMAL);
 
             Sensor sensor_g = mSensorManager_g.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
-            mSensorManager_g.registerListener(this, sensor_g, SensorManager.SENSOR_DELAY_GAME);
+            mSensorManager_g.registerListener(this, sensor_g, SensorManager.SENSOR_DELAY_NORMAL);
 
             Sensor sensor_h = mSensorManager_h.getDefaultSensor(Sensor.TYPE_HEART_RATE);
-            mSensorManager_h.registerListener(this, sensor_h, SensorManager.SENSOR_DELAY_GAME);
+            mSensorManager_h.registerListener(this, sensor_h, SensorManager.SENSOR_DELAY_NORMAL);
 
             mGoogleApiClient.connect();
 
@@ -226,6 +229,17 @@ public class WearMainActivity extends Activity implements SensorEventListener{
             a_y = event.values[1];
             a_z = event.values[2];
             acc_t = System.currentTimeMillis()+deltaTime;
+
+            accelData = "Accel" + "," + acc_t + "," + a_x +","+a_y+","+a_z;
+            Wearable.MessageApi.sendMessage(mGoogleApiClient, mNode, accelData,null).setResultCallback(new ResultCallback<MessageApi.SendMessageResult>() {
+                @Override
+                public void onResult(MessageApi.SendMessageResult result) {
+                    if(!result.getStatus().isSuccess()){
+                        Log.d(TAG,"Error : faild to send AccelData Message" + result.getStatus());
+                    }
+                }
+            });
+
             //Log.d(TAG, "a_t"+acc_t+"a_x: " + a_x + " " + "a_y: " + a_y + " " + "a_z: " + a_z);
         }
 
@@ -234,6 +248,15 @@ public class WearMainActivity extends Activity implements SensorEventListener{
             g_y = event.values[1];
             g_z = event.values[2];
             geo_t = System.currentTimeMillis() + deltaTime;
+            gyroData = "Gyro" + "," + geo_t + "," + g_x +","+g_y+","+g_z;
+            Wearable.MessageApi.sendMessage(mGoogleApiClient, mNode, gyroData,null).setResultCallback(new ResultCallback<MessageApi.SendMessageResult>() {
+                @Override
+                public void onResult(MessageApi.SendMessageResult result) {
+                    if(!result.getStatus().isSuccess()){
+                        Log.d(TAG,"Error : faild to send GyroData Message" + result.getStatus());
+                    }
+                }
+            });
 //            Log.d(TAG, "g_t"+geo_t+"g_x: " + g_x + " " + "g_y: " + g_y + " " + "g_z: " + g_z);
         }
 
@@ -241,18 +264,28 @@ public class WearMainActivity extends Activity implements SensorEventListener{
             h_b = event.values[0];
             heart_t = System.currentTimeMillis() + deltaTime;
             heartrate_text.setText(String.valueOf(h_b));
-            Log.d(TAG, "h_t"+heart_t+"h_b: " + h_b);
-        }
-
-        data=acc_t+","+a_x+","+a_y+","+a_z+","+geo_t+","+g_x+","+g_y+","+g_z + ","+heart_t+","+h_b;
-        Wearable.MessageApi.sendMessage(mGoogleApiClient, mNode, data,null).setResultCallback(new ResultCallback<MessageApi.SendMessageResult>() {
+//            Log.d(TAG, "h_t"+heart_t+"h_b: " + h_b);
+            heartRateData = "HeartRate"+","+heart_t+","+h_b;
+            Wearable.MessageApi.sendMessage(mGoogleApiClient, mNode, heartRateData,null).setResultCallback(new ResultCallback<MessageApi.SendMessageResult>() {
                 @Override
                 public void onResult(MessageApi.SendMessageResult result) {
                     if(!result.getStatus().isSuccess()){
-                        Log.d(TAG,"Error : faild to send Message" + result.getStatus());
+                        Log.d(TAG,"Error : faild to send HeartRateData Message" + result.getStatus());
                     }
                 }
             });
+
+        }
+
+        data=acc_t+","+a_x+","+a_y+","+a_z+","+geo_t+","+g_x+","+g_y+","+g_z + ","+heart_t+","+h_b;
+//        Wearable.MessageApi.sendMessage(mGoogleApiClient, mNode, data,null).setResultCallback(new ResultCallback<MessageApi.SendMessageResult>() {
+//                @Override
+//                public void onResult(MessageApi.SendMessageResult result) {
+//                    if(!result.getStatus().isSuccess()){
+//                        Log.d(TAG,"Error : faild to send Message" + result.getStatus());
+//                    }
+//                }
+//            });
 
     }
     @Override

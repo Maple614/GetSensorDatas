@@ -73,7 +73,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
             savedata_SG="Gyro_TimeStamp,GyroX,GyroY,GyroZ\n",
             savedata_HR="HB_TimeStamp,HeartRate\n",
             savedata_AP="AP_TimeStamp,pressure\n",
-            savedata_GPS="GPS_TimeStamp,latitude,longtitude\n";
+            savedata_GPS="GPS_TimeStamp,latitude,longitude\n";
 
     double acc=0;
     boolean start=false,stop=false;
@@ -242,28 +242,55 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
             acctimestampTextView.setText("接続状態：データ取得中");
 
             SimpleDateFormat sdf_local = new SimpleDateFormat(TIME_FORMAT);
-            Long acc_timestamp_local = new Long(values[0]);
-        try{
-            bw_WA.write(values[0]+","+values[1]+","+values[2]+","+values[3]+"\n");
-        }catch (Exception e) {
-            // text = "error: FileOutputStream";
-            e.printStackTrace();
-        }
-        try{
-            bw_WG.write(values[4]+","+values[5]+","+values[6]+","+values[7]+"\n");
-        }catch (Exception e) {
-            // text = "error: FileOutputStream";
-            e.printStackTrace();
-        }
-        try{
-            bw_HR.write(values[8]+","+values[9]+"\n");
-        }catch (Exception e) {
-            // text = "error: FileOutputStream";
-            e.printStackTrace();
-        }
+            Long acc_timestamp_local = new Long(values[1]);
 
+            switch (values[0]){
+                case "Accel":
+                    try{
+                        bw_WA.write(values[1]+","+values[2]+","+values[3]+","+values[4]+"\n");
+                    }catch (Exception e) {
+                        // text = "error: FileOutputStream";
+                        e.printStackTrace();
+                    }
+                    break;
 
+                case "Gyro":
+                    try{
+                        bw_WG.write(values[1]+","+values[2]+","+values[3]+","+values[4]+"\n");
+                    }catch (Exception e) {
+                        // text = "error: FileOutputStream";
+                        e.printStackTrace();
+                    }
+                    break;
 
+                case "HeartRate":
+                    try{
+                        bw_HR.write(values[1]+","+values[2]+"\n");
+                    }catch (Exception e) {
+                        // text = "error: FileOutputStream";
+                        e.printStackTrace();
+                    }
+                    break;
+            }
+
+//        try{
+//            bw_WA.write(values[0]+","+values[1]+","+values[2]+","+values[3]+"\n");
+//        }catch (Exception e) {
+//            // text = "error: FileOutputStream";
+//            e.printStackTrace();
+//        }
+//        try{
+//            bw_WG.write(values[4]+","+values[5]+","+values[6]+","+values[7]+"\n");
+//        }catch (Exception e) {
+//            // text = "error: FileOutputStream";
+//            e.printStackTrace();
+//        }
+//        try{
+//            bw_HR.write(values[8]+","+values[9]+"\n");
+//        }catch (Exception e) {
+//            // text = "error: FileOutputStream";
+//            e.printStackTrace();
+//        }
     }
 
     public boolean isExternalStorageWritable() {
@@ -434,6 +461,9 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
     float a_x=0,a_y=0,a_z=0,g_x=0,g_y=0,g_z=0,ap_val = 0;
     String data_SA,data_SG,data_sp;
     long a_time=0L,g_time=0L,ap_time = 0L;
+    int countAccel = 0;
+
+
     @Override
     public void onSensorChanged(SensorEvent event) {
 
@@ -456,6 +486,22 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
                 } catch (IOException k) {
                     k.printStackTrace();
                 }
+
+                if(countAccel%10==0){
+                    GPS_time = System.currentTimeMillis()+deltaTime;;
+                    data_GPS = GPS_time+","+latitude+","+longitude+"\n";
+                    try {
+                        bw_GPS.write(data_GPS);
+                        countAccel = 0;
+                    } catch (UnsupportedEncodingException k) {
+                        k.printStackTrace();
+                    } catch (FileNotFoundException k) {
+                        k.printStackTrace();
+                    } catch (IOException k) {
+                        k.printStackTrace();
+                    }
+                }
+                countAccel++;
             }
             if (event.sensor.getType() == Sensor.TYPE_GYROSCOPE) {// gyro
                 g_x = event.values[0];
@@ -463,7 +509,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
                 g_z = event.values[2];
 
                 //pseudo time
-                a_time = System.currentTimeMillis()+deltaTime;;
+                g_time = System.currentTimeMillis()+deltaTime;;
                 data_SG = g_time+","+g_x+","+g_y+","+g_z+"\n";
                 try {
                     bw_SG.write(data_SG);
@@ -541,15 +587,15 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
 
     }
 
-    double latitude=0,longtitude=0;
-    String data_GPS;
+    double latitude=0,longitude=0;
+    String data_GPS="";
     long GPS_time=0L;
 
     @Override
     public void onLocationChanged(Location location) {
         if(startFlag){
             latitude = location.getLatitude();
-            longtitude = location.getLatitude();
+            longitude = location.getLongitude();
 
             //pseudo time
             GPS_time = System.currentTimeMillis()+deltaTime;;
@@ -560,19 +606,19 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
             lat_text.setText(str1);
 
             // 経度の表示
-            String str2 = "Longtude: "+longtitude;
+            String str2 = "Longtude: "+longitude;
             long_text.setText(str2);
 
-            data_GPS = GPS_time+","+latitude+","+longtitude+"\n";
-            try {
-                bw_GPS.write(data_SG);
-            } catch (UnsupportedEncodingException k) {
-                k.printStackTrace();
-            } catch (FileNotFoundException k) {
-                k.printStackTrace();
-            } catch (IOException k) {
-                k.printStackTrace();
-            }
+//            data_GPS = GPS_time+","+latitude+","+longitude+"\n";
+//            try {
+//                bw_GPS.write(data_GPS);
+//            } catch (UnsupportedEncodingException k) {
+//                k.printStackTrace();
+//            } catch (FileNotFoundException k) {
+//                k.printStackTrace();
+//            } catch (IOException k) {
+//                k.printStackTrace();
+//            }
         }
     }
 
