@@ -21,6 +21,7 @@ import android.os.Environment;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
@@ -45,6 +46,9 @@ import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
+
 public class MainActivity extends Activity implements GoogleApiClient.ConnectionCallbacks, MessageApi.MessageListener, SensorEventListener, LocationListener {
     private  static final String TAG = MainActivity.class.getName();
     private  GoogleApiClient mGoogleApiClient;
@@ -59,13 +63,13 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
     Date d;
     SimpleDateFormat sdf;
 
-    BufferedWriter bw_WA,bw_WG,bw_SA,bw_SG,bw_HR,bw_AP,bw_GPS;
+    BufferedWriter bw_WA,bw_WG,bw_SA,bw_SG,bw_HR,bw_AP,bw_GPS,bw_AccessPoint;
 
     FileOutputStream fileOutputStream_WA,fileOutputStream_WG,fileOutputStream_SA,
-            fileOutputStream_SG,fileOutputStream_HR,fileOutputStream_AP,fileOutputStream_GPS;
+            fileOutputStream_SG,fileOutputStream_HR,fileOutputStream_AP,fileOutputStream_GPS,fileOutputStream_AccessPoint;
 
     OutputStreamWriter outputStreamWriter_WA,outputStreamWriter_WG,outputStreamWriter_SA,
-            outputStreamWriter_SG,outputStreamWriter_HR,outputStreamWriter_AP,outputStreamWriter_GPS;
+            outputStreamWriter_SG,outputStreamWriter_HR,outputStreamWriter_AP,outputStreamWriter_GPS,outputStreamWriter_AccessPoint;
 
     String savedata_WA="Acc_TimeStamp,AccX,AccY,AccZ\n",
             savedata_WG="Gyro_TimeStamp,GyroX,GyroY,GyroZ\n",
@@ -73,7 +77,8 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
             savedata_SG="Gyro_TimeStamp,GyroX,GyroY,GyroZ\n",
             savedata_HR="HB_TimeStamp,HeartRate\n",
             savedata_AP="AP_TimeStamp,pressure\n",
-            savedata_GPS="GPS_TimeStamp,latitude,longitude\n";
+            savedata_GPS="GPS_TimeStamp,latitude,longitude\n",
+            savedata_AccessPoint="AccessPoint_TimeStamp,SSID,Rssi\n";
 
     double acc=0;
     boolean start=false,stop=false;
@@ -84,7 +89,8 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
 
     private SensorManager mSensorManager_ap, mSensorManager_Accel, mSensorManager_Gyro;
     private LocationManager mlocationManager;
-
+    private WifiManager m_WifiManager;
+    private WifiInfo m_WifiInfo;
     boolean startFlag = false;
 
     private final int EXTERNAL_STORAGE_REQUEST_CODE = 1;
@@ -127,12 +133,17 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
         long_text = (TextView)findViewById(R.id.long_text);
         mlocationManager = (LocationManager)getSystemService(LOCATION_SERVICE);
 
+        m_WifiManager = (WifiManager)  getApplicationContext().getSystemService(WIFI_SERVICE);
 
     }
 
     // Permissionの確認
     @TargetApi(Build.VERSION_CODES.M)
     public void checkPermission() {
+
+        if(checkSelfPermission(Manifest.permission.ACCESS_WIFI_STATE) != PackageManager.PERMISSION_GRANTED){
+            ActivityCompat.requestPermissions(this,new String[]{Manifest.permission.ACCESS_WIFI_STATE},1);
+        }
         // 既に許可している
         if ((checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)== PackageManager.PERMISSION_GRANTED)&&(checkSelfPermission(
                 Manifest.permission.ACCESS_FINE_LOCATION) ==
@@ -140,7 +151,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
                 checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
                         == PackageManager.PERMISSION_GRANTED)) {
             locationStart();
-            mlocationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,1000, 1, this);
+            mlocationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,300, 1, this);
             Location location = mlocationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
             Log.d("location",String.valueOf(location));
 
@@ -159,6 +170,8 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
         mlocationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,1000, 1, this);
         Location location = mlocationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
         Log.d("location",String.valueOf(location));
+
+
     }
 
     @Override
@@ -346,6 +359,12 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
         File file_smartphone_ap = new File (filePath_smartphone_ap);
         file_smartphone_ap.getParentFile().mkdir();
 
+        String filePath_smartphone_accesspoint =
+                Environment.getExternalStorageDirectory().getPath()
+                        + "/" + sdf.format(d) + "_smartphone_accesspoint_" + editText.getText() + ".csv";
+        File file_smartphone_accesspoint = new File (filePath_smartphone_accesspoint);
+        file_smartphone_accesspoint.getParentFile().mkdir();
+
 
 
         try {
@@ -356,6 +375,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
             fileOutputStream_HR = new FileOutputStream(file_HR, true);
             fileOutputStream_AP = new FileOutputStream(file_smartphone_ap,true);
             fileOutputStream_GPS = new FileOutputStream(file_GPS, true);
+            fileOutputStream_AccessPoint = new FileOutputStream(file_smartphone_accesspoint,true);
 
             outputStreamWriter_WA = new OutputStreamWriter(fileOutputStream_WA, "UTF-8");
             outputStreamWriter_WG = new OutputStreamWriter(fileOutputStream_WG, "UTF-8");
@@ -364,6 +384,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
             outputStreamWriter_HR = new OutputStreamWriter(fileOutputStream_HR, "UTF-8");
             outputStreamWriter_AP = new OutputStreamWriter(fileOutputStream_AP, "UTF-8");
             outputStreamWriter_GPS = new OutputStreamWriter(fileOutputStream_GPS, "UTF-8");
+            outputStreamWriter_AccessPoint = new OutputStreamWriter(fileOutputStream_AccessPoint, "UTF-8");
 
 
             bw_WA = new BufferedWriter(outputStreamWriter_WA);
@@ -380,6 +401,8 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
             bw_AP.write(savedata_AP);
             bw_GPS = new BufferedWriter(outputStreamWriter_GPS);
             bw_GPS.write(savedata_GPS);
+            bw_AccessPoint = new BufferedWriter(outputStreamWriter_AccessPoint);
+            bw_AccessPoint.write(savedata_AccessPoint);
 
             acctimestampTextView.setText("接続状態：ファイル作成完了");
 
@@ -446,6 +469,11 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
            outputStreamWriter_GPS.close();
            fileOutputStream_GPS.close();
 
+           bw_AccessPoint.flush();
+           bw_AccessPoint.close();
+           outputStreamWriter_AccessPoint.close();
+           fileOutputStream_AccessPoint.close();
+
 
            acctimestampTextView.setText("接続状態：SAVED");
             // text = "saved";
@@ -458,9 +486,9 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
         // text = "";
     }
 
-    float a_x=0,a_y=0,a_z=0,g_x=0,g_y=0,g_z=0,ap_val = 0;
-    String data_SA,data_SG,data_sp;
-    long a_time=0L,g_time=0L,ap_time = 0L;
+    float a_x=0,a_y=0,a_z=0,g_x=0,g_y=0,g_z=0,ap_val = 0,rssi=0;
+    String data_SA,data_SG,data_sp,data_AccessPoint="",SSID="";
+    long a_time=0L,g_time=0L,ap_time = 0L,AccessPoint_time=0L;
     int countAccel = 0;
 
 
@@ -493,6 +521,18 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
                     try {
                         bw_GPS.write(data_GPS);
                         countAccel = 0;
+                    } catch (UnsupportedEncodingException k) {
+                        k.printStackTrace();
+                    } catch (FileNotFoundException k) {
+                        k.printStackTrace();
+                    } catch (IOException k) {
+                        k.printStackTrace();
+                    }
+                    AccessPoint_time = System.currentTimeMillis()+deltaTime;
+                    m_WifiInfo = m_WifiManager.getConnectionInfo();
+                    data_AccessPoint = AccessPoint_time+","+m_WifiInfo.getSSID()+","+m_WifiInfo.getRssi()+"\n";
+                    try {
+                        bw_AccessPoint.write(data_AccessPoint);
                     } catch (UnsupportedEncodingException k) {
                         k.printStackTrace();
                     } catch (FileNotFoundException k) {
