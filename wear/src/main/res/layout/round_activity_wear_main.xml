@@ -52,4 +52,12 @@
         android:paddingRight="2dp"
         android:text="Heart Rate" />
 
+    <TextView
+        android:id="@+id/textView2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="75pt"
+        android:layout_marginTop="65pt"
+        android:text="TextView" />
+
 </RelativeLayout>

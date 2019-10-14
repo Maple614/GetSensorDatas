@@ -49,14 +49,17 @@ import java.util.Date;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 
+import static android.content.ContentValues.TAG;
+
 public class MainActivity extends Activity implements GoogleApiClient.ConnectionCallbacks, MessageApi.MessageListener, SensorEventListener, LocationListener {
     private  static final String TAG = MainActivity.class.getName();
     private  GoogleApiClient mGoogleApiClient;
     TextView line;
     TextView d_TTextView;
     int count;
+    boolean onGettingData;
 
-    Button stopButton;
+    Button stopButton, finishButton;
 
     EditText editText;
     TextView acctimestampTextView;
@@ -78,7 +81,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
             savedata_HR="HB_TimeStamp,HeartRate\n",
             savedata_AP="AP_TimeStamp,pressure\n",
             savedata_GPS="GPS_TimeStamp,latitude,longitude\n",
-            savedata_AccessPoint="AccessPoint_TimeStamp,SSID,Rssi\n";
+            savedata_AccessPoint="AccessPoint_TimeStamp,SSID,Rssi,Frequency\n";
 
     double acc=0;
     boolean start=false,stop=false;
@@ -100,6 +103,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        onGettingData = false;
 
         deltaTime("ntp.nict.jp",10000);
         try{
@@ -122,7 +126,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
         count = 0;
 
         stopButton = (Button)findViewById(R.id.stop);
-
+        finishButton = (Button)findViewById(R.id.button2);
         mSensorManager_Accel = (SensorManager)getSystemService(SENSOR_SERVICE);
         mSensorManager_Gyro = (SensorManager)getSystemService(SENSOR_SERVICE);
 
@@ -153,7 +157,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
             locationStart();
             mlocationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,300, 1, this);
             Location location = mlocationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-            Log.d("location",String.valueOf(location));
+            //Log.d("location",String.valueOf(location));
 
             return;
         }
@@ -169,7 +173,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
         locationStart();
         mlocationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,1000, 1, this);
         Location location = mlocationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-        Log.d("location",String.valueOf(location));
+        //Log.d("location",String.valueOf(location));
 
 
     }
@@ -251,40 +255,42 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
         if ("" != values[0]&&stop==false) acctimestampTextView.setText("接続状態：OK");
         else if(""==values[0]&&stop==false) acctimestampTextView.setText("接続状態：未接続");
 
-            //Log.d(TAG, "onMessageReceived : " + messageEvent.getPath());
-            acctimestampTextView.setText("接続状態：データ取得中");
+        //Log.d(TAG, "onMessageReceived : " + messageEvent.getPath());
+        acctimestampTextView.setText("接続状態：データ取得中");
+        onGettingData = true;
+        SimpleDateFormat sdf_local = new SimpleDateFormat(TIME_FORMAT);
+        Long acc_timestamp_local = new Long(values[1]);
 
-            SimpleDateFormat sdf_local = new SimpleDateFormat(TIME_FORMAT);
-            Long acc_timestamp_local = new Long(values[1]);
+        switch (values[0]){
+            case "Accel":
+                try{
+                    bw_WA.write(values[1]+","+values[2]+","+values[3]+","+values[4]+"\n");
+                    //Log.d(TAG, "Received: " + values[1]);
+                }catch (Exception e) {
+                    // text = "error: FileOutputStream";
+                    e.printStackTrace();
+                }
+                break;
 
-            switch (values[0]){
-                case "Accel":
-                    try{
-                        bw_WA.write(values[1]+","+values[2]+","+values[3]+","+values[4]+"\n");
-                    }catch (Exception e) {
-                        // text = "error: FileOutputStream";
-                        e.printStackTrace();
-                    }
-                    break;
+            case "Gyro":
+                try{
+                    bw_WG.write(values[1]+","+values[2]+","+values[3]+","+values[4]+"\n");
+                }catch (Exception e) {
+                    // text = "error: FileOutputStream";
+                    e.printStackTrace();
+                }
+                break;
 
-                case "Gyro":
-                    try{
-                        bw_WG.write(values[1]+","+values[2]+","+values[3]+","+values[4]+"\n");
-                    }catch (Exception e) {
-                        // text = "error: FileOutputStream";
-                        e.printStackTrace();
-                    }
-                    break;
-
-                case "HeartRate":
-                    try{
-                        bw_HR.write(values[1]+","+values[2]+"\n");
-                    }catch (Exception e) {
-                        // text = "error: FileOutputStream";
-                        e.printStackTrace();
-                    }
-                    break;
-            }
+            case "HeartRate":
+                try{
+                    Log.d(TAG, "Phone HeartRate" + values[2]);
+                    bw_HR.write(values[1]+","+values[2]+"\n");
+                }catch (Exception e) {
+                    // text = "error: FileOutputStream";
+                    e.printStackTrace();
+                }
+                break;
+        }
 
 //        try{
 //            bw_WA.write(values[0]+","+values[1]+","+values[2]+","+values[3]+"\n");
@@ -428,62 +434,69 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
     }
 
     public void stopClicked(View view){
-        mGoogleApiClient.disconnect();
         startFlag = false;
+        onGettingData = false;
+
+
+        // textView.setText(text);
+        // text = "";
+    }
+
+    public void finishClicked(){
+        mGoogleApiClient.disconnect();
 
         try {
-
             acctimestampTextView.setText("接続状態：SAVING");
             bw_WA.flush();
             bw_WA.close();
             outputStreamWriter_WA.close();
             fileOutputStream_WA.close();
 
-           bw_WG.flush();
-           bw_WG.close();
-           outputStreamWriter_WG.close();
-           fileOutputStream_WG.close();
+            bw_WG.flush();
+            bw_WG.close();
+            outputStreamWriter_WG.close();
+            fileOutputStream_WG.close();
 
-           bw_SA.flush();
-           bw_SA.close();
-           outputStreamWriter_SA.close();
-           fileOutputStream_SA.close();
+            bw_SA.flush();
+            bw_SA.close();
+            outputStreamWriter_SA.close();
+            fileOutputStream_SA.close();
 
-           bw_SG.flush();
-           bw_SG.close();
-           outputStreamWriter_WG.close();
-           fileOutputStream_WG.close();
+            bw_SG.flush();
+            bw_SG.close();
+            outputStreamWriter_WG.close();
+            fileOutputStream_WG.close();
 
-           bw_HR.flush();
-           bw_HR.close();
-           outputStreamWriter_HR.close();
-           fileOutputStream_HR.close();
+            bw_HR.flush();
+            bw_HR.close();
+            outputStreamWriter_HR.close();
+            fileOutputStream_HR.close();
 
-           bw_AP.flush();
+            bw_AP.flush();
             bw_AP.close();
             outputStreamWriter_AP.close();
             fileOutputStream_AP.close();
 
-           bw_GPS.flush();
-           bw_GPS.close();
-           outputStreamWriter_GPS.close();
-           fileOutputStream_GPS.close();
+            bw_GPS.flush();
+            bw_GPS.close();
+            outputStreamWriter_GPS.close();
+            fileOutputStream_GPS.close();
 
-           bw_AccessPoint.flush();
-           bw_AccessPoint.close();
-           outputStreamWriter_AccessPoint.close();
-           fileOutputStream_AccessPoint.close();
+            bw_AccessPoint.flush();
+            bw_AccessPoint.close();
+            outputStreamWriter_AccessPoint.close();
+            fileOutputStream_AccessPoint.close();
 
 
-           acctimestampTextView.setText("接続状態：SAVED");
+            acctimestampTextView.setText("接続状態：SAVED");
             // text = "saved";
         } catch (Exception e) {
             // text = "error: FileOutputStream";
             acctimestampTextView.setText("接続状態：FAILED");
             e.printStackTrace();
         }
-        // textView.setText(text);
-        // text = "";
+        finish();
+        onDestroy();
     }
 
     float a_x=0,a_y=0,a_z=0,g_x=0,g_y=0,g_z=0,ap_val = 0,rssi=0;
@@ -494,33 +507,21 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
 
     @Override
     public void onSensorChanged(SensorEvent event) {
+        if(onGettingData == true) {
+            if (startFlag) {
+                if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {// Accel
+                    a_x = event.values[0];
+                    a_y = event.values[1];
+                    a_z = event.values[2];
 
-        if(startFlag){
-            if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {// Accel
-                a_x = event.values[0];
-                a_y = event.values[1];
-                a_z = event.values[2];
+                    //pseudo time
+                    a_time = System.currentTimeMillis() + deltaTime;
+                    ;
+                    data_SA = a_time + "," + a_x + "," + a_y + "," + a_z + "\n";
+                    //Log.d(TAG, "Timestamp: " + a_time);
 
-                //pseudo time
-                a_time = System.currentTimeMillis()+deltaTime;;
-                data_SA = a_time+","+a_x+","+a_y+","+a_z+"\n";
-
-                try {
-                    bw_SA.write(data_SA);
-                } catch (UnsupportedEncodingException k) {
-                    k.printStackTrace();
-                } catch (FileNotFoundException k) {
-                    k.printStackTrace();
-                } catch (IOException k) {
-                    k.printStackTrace();
-                }
-
-                if(countAccel%10==0){
-                    GPS_time = System.currentTimeMillis()+deltaTime;;
-                    data_GPS = GPS_time+","+latitude+","+longitude+"\n";
                     try {
-                        bw_GPS.write(data_GPS);
-                        countAccel = 0;
+                        bw_SA.write(data_SA);
                     } catch (UnsupportedEncodingException k) {
                         k.printStackTrace();
                     } catch (FileNotFoundException k) {
@@ -528,11 +529,47 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
                     } catch (IOException k) {
                         k.printStackTrace();
                     }
-                    AccessPoint_time = System.currentTimeMillis()+deltaTime;
-                    m_WifiInfo = m_WifiManager.getConnectionInfo();
-                    data_AccessPoint = AccessPoint_time+","+m_WifiInfo.getSSID()+","+m_WifiInfo.getRssi()+"\n";
+
+                    if (countAccel % 10 == 0) {
+                        GPS_time = System.currentTimeMillis() + deltaTime;
+                        ;
+                        data_GPS = GPS_time + "," + latitude + "," + longitude + "\n";
+                        try {
+                            bw_GPS.write(data_GPS);
+                            countAccel = 0;
+                        } catch (UnsupportedEncodingException k) {
+                            k.printStackTrace();
+                        } catch (FileNotFoundException k) {
+                            k.printStackTrace();
+                        } catch (IOException k) {
+                            k.printStackTrace();
+                        }
+                        AccessPoint_time = System.currentTimeMillis() + deltaTime;
+                        m_WifiInfo = m_WifiManager.getConnectionInfo();
+                        data_AccessPoint = AccessPoint_time + "," + m_WifiInfo.getSSID() + "," + m_WifiInfo.getRssi() +","+ m_WifiInfo.getFrequency()+ "\n";
+                        try {
+                            bw_AccessPoint.write(data_AccessPoint);
+                        } catch (UnsupportedEncodingException k) {
+                            k.printStackTrace();
+                        } catch (FileNotFoundException k) {
+                            k.printStackTrace();
+                        } catch (IOException k) {
+                            k.printStackTrace();
+                        }
+                    }
+                    countAccel++;
+                }
+                if (event.sensor.getType() == Sensor.TYPE_GYROSCOPE) {// gyro
+                    g_x = event.values[0];
+                    g_y = event.values[1];
+                    g_z = event.values[2];
+
+                    //pseudo time
+                    g_time = System.currentTimeMillis() + deltaTime;
+                    ;
+                    data_SG = g_time + "," + g_x + "," + g_y + "," + g_z + "\n";
                     try {
-                        bw_AccessPoint.write(data_AccessPoint);
+                        bw_SG.write(data_SG);
                     } catch (UnsupportedEncodingException k) {
                         k.printStackTrace();
                     } catch (FileNotFoundException k) {
@@ -541,42 +578,24 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
                         k.printStackTrace();
                     }
                 }
-                countAccel++;
-            }
-            if (event.sensor.getType() == Sensor.TYPE_GYROSCOPE) {// gyro
-                g_x = event.values[0];
-                g_y = event.values[1];
-                g_z = event.values[2];
-
-                //pseudo time
-                g_time = System.currentTimeMillis()+deltaTime;;
-                data_SG = g_time+","+g_x+","+g_y+","+g_z+"\n";
-                try {
-                    bw_SG.write(data_SG);
-                } catch (UnsupportedEncodingException k) {
-                    k.printStackTrace();
-                } catch (FileNotFoundException k) {
-                    k.printStackTrace();
-                } catch (IOException k) {
-                    k.printStackTrace();
-                }
-            }
-            if (event.sensor.getType() == Sensor.TYPE_PRESSURE) {// air pressure
-                ap_val = event.values[0];
-                // 取得した気圧をログに出力する
-                //Log.d("**pressure", "気圧=" + ap_val + "hPa");
-                ap_text.setText(String.valueOf(ap_val));
-                //pseudo time
-                ap_time = System.currentTimeMillis()+deltaTime;;
-                data_sp = ap_time+","+ap_val+"\n";
-                try {
-                    bw_AP.write(data_sp);
-                } catch (UnsupportedEncodingException k) {
-                    k.printStackTrace();
-                } catch (FileNotFoundException k) {
-                    k.printStackTrace();
-                } catch (IOException k) {
-                    k.printStackTrace();
+                if (event.sensor.getType() == Sensor.TYPE_PRESSURE) {// air pressure
+                    ap_val = event.values[0];
+                    // 取得した気圧をログに出力する
+                    //Log.d("**pressure", "気圧=" + ap_val + "hPa");
+                    ap_text.setText(String.valueOf(ap_val));
+                    //pseudo time
+                    ap_time = System.currentTimeMillis() + deltaTime;
+                    ;
+                    data_sp = ap_time + "," + ap_val + "\n";
+                    try {
+                        bw_AP.write(data_sp);
+                    } catch (UnsupportedEncodingException k) {
+                        k.printStackTrace();
+                    } catch (FileNotFoundException k) {
+                        k.printStackTrace();
+                    } catch (IOException k) {
+                        k.printStackTrace();
+                    }
                 }
             }
         }
