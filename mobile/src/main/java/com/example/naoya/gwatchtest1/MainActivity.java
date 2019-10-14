@@ -89,6 +89,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
     long deltaTime;
     TextView ap_text;
     TextView lat_text, long_text;
+    TextView recordCount;
 
     private SensorManager mSensorManager_ap, mSensorManager_Accel, mSensorManager_Gyro;
     private LocationManager mlocationManager;
@@ -138,6 +139,9 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
         mlocationManager = (LocationManager)getSystemService(LOCATION_SERVICE);
 
         m_WifiManager = (WifiManager)  getApplicationContext().getSystemService(WIFI_SERVICE);
+
+        recordCount = (TextView)findViewById(R.id.textView4);
+        recordCount.setText(String.valueOf(0));
 
     }
 
@@ -442,7 +446,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
         // text = "";
     }
 
-    public void finishClicked(){
+    public void finishClicked(View view){
         mGoogleApiClient.disconnect();
 
         try {
@@ -502,7 +506,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
     float a_x=0,a_y=0,a_z=0,g_x=0,g_y=0,g_z=0,ap_val = 0,rssi=0;
     String data_SA,data_SG,data_sp,data_AccessPoint="",SSID="";
     long a_time=0L,g_time=0L,ap_time = 0L,AccessPoint_time=0L;
-    int countAccel = 0;
+    int countAccel = 0, recordCount_ = 0;
 
 
     @Override
@@ -522,6 +526,8 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
 
                     try {
                         bw_SA.write(data_SA);
+                        recordCount_++;
+                        recordCount.setText(String.valueOf(recordCount_));
                     } catch (UnsupportedEncodingException k) {
                         k.printStackTrace();
                     } catch (FileNotFoundException k) {
@@ -566,7 +572,6 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
 
                     //pseudo time
                     g_time = System.currentTimeMillis() + deltaTime;
-                    ;
                     data_SG = g_time + "," + g_x + "," + g_y + "," + g_z + "\n";
                     try {
                         bw_SG.write(data_SG);
@@ -585,7 +590,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
                     ap_text.setText(String.valueOf(ap_val));
                     //pseudo time
                     ap_time = System.currentTimeMillis() + deltaTime;
-                    ;
+
                     data_sp = ap_time + "," + ap_val + "\n";
                     try {
                         bw_AP.write(data_sp);
