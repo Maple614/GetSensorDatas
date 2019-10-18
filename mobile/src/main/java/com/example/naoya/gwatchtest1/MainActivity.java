@@ -82,7 +82,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
             savedata_AP="AP_TimeStamp,pressure\n",
             savedata_GPS="GPS_TimeStamp,latitude,longitude\n",
             savedata_AccessPoint="AccessPoint_TimeStamp,SSID,Rssi,Frequency\n",
-            savedata_M="Magnetic_TimeStamp,Direction, Front-Back_slope, Left-Right_slope";
+            savedata_M="Magnetic_TimeStamp,Direction, Front-Back_slope, Left-Right_slope\n";
 
     private float[] fAccell = null;
     private float[] fMagnetic = null;
