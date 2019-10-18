@@ -49,22 +49,6 @@
             android:onClick="startClicked"
             android:text="START" />
 
-        <Button
-            android:id="@+id/stop"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:onClick="stopClicked"
-            android:text="STOP" />
-
-        <Button
-            android:id="@+id/button2"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:onClick="finishClicked"
-            android:text="Finish" />
-
         <TextView
             android:id="@+id/textView4"
             android:layout_width="match_parent"
@@ -86,6 +70,14 @@
             android:layout_weight="1"
             android:text="TextView" />
 
+        <Button
+            android:id="@+id/stop"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:onClick="stopClicked"
+            android:text="STOP" />
+
         <TextView
             android:id="@+id/lat_text"
             android:layout_width="match_parent"
@@ -99,6 +91,14 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="TextView" />
+
+        <Button
+            android:id="@+id/button2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:onClick="finishClicked"
+            android:text="Finish" />
 
 
     </LinearLayout>
