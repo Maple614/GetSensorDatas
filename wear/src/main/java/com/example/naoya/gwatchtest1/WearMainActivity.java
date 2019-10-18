@@ -112,7 +112,6 @@ public class WearMainActivity extends Activity implements SensorEventListener{
         mSensorManager_a = (SensorManager)getSystemService(SENSOR_SERVICE);
         mSensorManager_g = (SensorManager)getSystemService(SENSOR_SERVICE);
         mSensorManager_h = (SensorManager)getSystemService(SENSOR_SERVICE);
-
         mGoogleApiClient = new GoogleApiClient.Builder(this)
                 .addApi(Wearable.API)
                 .addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks(){
@@ -183,6 +182,7 @@ public class WearMainActivity extends Activity implements SensorEventListener{
 
             Sensor sensor_h = mSensorManager_h.getDefaultSensor(Sensor.TYPE_HEART_RATE);
             mSensorManager_h.registerListener(this, sensor_h, SensorManager.SENSOR_DELAY_NORMAL);
+
 
             mGoogleApiClient.connect();
 

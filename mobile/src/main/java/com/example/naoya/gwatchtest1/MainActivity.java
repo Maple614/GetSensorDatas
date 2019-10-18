@@ -66,13 +66,13 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
     Date d;
     SimpleDateFormat sdf;
 
-    BufferedWriter bw_WA,bw_WG,bw_SA,bw_SG,bw_HR,bw_AP,bw_GPS,bw_AccessPoint;
+    BufferedWriter bw_WA,bw_WG,bw_SA,bw_SG,bw_HR,bw_AP,bw_GPS,bw_AccessPoint,bw_M;
 
     FileOutputStream fileOutputStream_WA,fileOutputStream_WG,fileOutputStream_SA,
-            fileOutputStream_SG,fileOutputStream_HR,fileOutputStream_AP,fileOutputStream_GPS,fileOutputStream_AccessPoint;
+            fileOutputStream_SG,fileOutputStream_HR,fileOutputStream_AP,fileOutputStream_GPS,fileOutputStream_AccessPoint,fileOutputStream_M;
 
     OutputStreamWriter outputStreamWriter_WA,outputStreamWriter_WG,outputStreamWriter_SA,
-            outputStreamWriter_SG,outputStreamWriter_HR,outputStreamWriter_AP,outputStreamWriter_GPS,outputStreamWriter_AccessPoint;
+            outputStreamWriter_SG,outputStreamWriter_HR,outputStreamWriter_AP,outputStreamWriter_GPS,outputStreamWriter_AccessPoint, outputStreamWriter_M;
 
     String savedata_WA="Acc_TimeStamp,AccX,AccY,AccZ\n",
             savedata_WG="Gyro_TimeStamp,GyroX,GyroY,GyroZ\n",
@@ -81,7 +81,15 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
             savedata_HR="HB_TimeStamp,HeartRate\n",
             savedata_AP="AP_TimeStamp,pressure\n",
             savedata_GPS="GPS_TimeStamp,latitude,longitude\n",
-            savedata_AccessPoint="AccessPoint_TimeStamp,SSID,Rssi,Frequency\n";
+            savedata_AccessPoint="AccessPoint_TimeStamp,SSID,Rssi,Frequency\n",
+            savedata_M="Magnetic_TimeStamp,Direction, Front-Back_slope, Left-Right_slope";
+
+    private float[] fAccell = null;
+    private float[] fMagnetic = null;
+    private static final int MATRIX_SIZE = 16;
+    float[] inR = new float[MATRIX_SIZE];
+    float[] outR = new float[MATRIX_SIZE];
+    float[] I = new float[MATRIX_SIZE];
 
     double acc=0;
     boolean start=false,stop=false;
@@ -91,7 +99,8 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
     TextView lat_text, long_text;
     TextView recordCount;
 
-    private SensorManager mSensorManager_ap, mSensorManager_Accel, mSensorManager_Gyro;
+    private SensorManager mSensorManager_ap, mSensorManager_Accel, mSensorManager_Gyro, m_SensorManager_m;
+
     private LocationManager mlocationManager;
     private WifiManager m_WifiManager;
     private WifiInfo m_WifiInfo;
@@ -130,6 +139,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
         finishButton = (Button)findViewById(R.id.button2);
         mSensorManager_Accel = (SensorManager)getSystemService(SENSOR_SERVICE);
         mSensorManager_Gyro = (SensorManager)getSystemService(SENSOR_SERVICE);
+        m_SensorManager_m = (SensorManager)getSystemService(SENSOR_SERVICE);
 
         ap_text = (TextView)findViewById(R.id.textView3);
         mSensorManager_ap = (SensorManager)getSystemService(SENSOR_SERVICE);
@@ -214,6 +224,9 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
 
             Sensor sensor_ap = mSensorManager_ap.getDefaultSensor(Sensor.TYPE_PRESSURE);
             mSensorManager_ap.registerListener(this, sensor_ap, SensorManager.SENSOR_DELAY_GAME);
+
+            Sensor sensor_m = m_SensorManager_m.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
+            m_SensorManager_m.registerListener(this,sensor_m, SensorManager.SENSOR_DELAY_GAME);
 
             resumeFlag = false;
         }
@@ -375,6 +388,11 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
         File file_smartphone_accesspoint = new File (filePath_smartphone_accesspoint);
         file_smartphone_accesspoint.getParentFile().mkdir();
 
+        String filePath_smartphone_magnetic =
+                Environment.getExternalStorageDirectory().getPath()
+                        + "/" + sdf.format(d) + "_smartphone_magnetic_" + editText.getText() + ".csv";
+        File file_smartphone_magnetic = new File (filePath_smartphone_magnetic);
+        file_smartphone_magnetic.getParentFile().mkdir();
 
 
         try {
@@ -386,6 +404,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
             fileOutputStream_AP = new FileOutputStream(file_smartphone_ap,true);
             fileOutputStream_GPS = new FileOutputStream(file_GPS, true);
             fileOutputStream_AccessPoint = new FileOutputStream(file_smartphone_accesspoint,true);
+            fileOutputStream_M = new FileOutputStream(file_smartphone_magnetic,true);
 
             outputStreamWriter_WA = new OutputStreamWriter(fileOutputStream_WA, "UTF-8");
             outputStreamWriter_WG = new OutputStreamWriter(fileOutputStream_WG, "UTF-8");
@@ -395,6 +414,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
             outputStreamWriter_AP = new OutputStreamWriter(fileOutputStream_AP, "UTF-8");
             outputStreamWriter_GPS = new OutputStreamWriter(fileOutputStream_GPS, "UTF-8");
             outputStreamWriter_AccessPoint = new OutputStreamWriter(fileOutputStream_AccessPoint, "UTF-8");
+            outputStreamWriter_M = new OutputStreamWriter(fileOutputStream_M, "UTF-8");
 
 
             bw_WA = new BufferedWriter(outputStreamWriter_WA);
@@ -413,6 +433,8 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
             bw_GPS.write(savedata_GPS);
             bw_AccessPoint = new BufferedWriter(outputStreamWriter_AccessPoint);
             bw_AccessPoint.write(savedata_AccessPoint);
+            bw_M = new BufferedWriter(outputStreamWriter_M);
+            bw_M.write(savedata_M);
 
             acctimestampTextView.setText("接続状態：ファイル作成完了");
 
@@ -491,6 +513,11 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
             outputStreamWriter_AccessPoint.close();
             fileOutputStream_AccessPoint.close();
 
+            bw_M.flush();
+            bw_M.close();
+            outputStreamWriter_M.close();
+            fileOutputStream_M.close();
+
 
             acctimestampTextView.setText("接続状態：SAVED");
             // text = "saved";
@@ -504,8 +531,8 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
     }
 
     float a_x=0,a_y=0,a_z=0,g_x=0,g_y=0,g_z=0,ap_val = 0,rssi=0;
-    String data_SA,data_SG,data_sp,data_AccessPoint="",SSID="";
-    long a_time=0L,g_time=0L,ap_time = 0L,AccessPoint_time=0L;
+    String data_SA,data_SG,data_sp,data_AccessPoint="",SSID="",data_M="";
+    long a_time=0L,g_time=0L,ap_time = 0L,AccessPoint_time=0L, m_Time =0L;
     int countAccel = 0, recordCount_ = 0;
 
 
@@ -517,6 +544,8 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
                     a_x = event.values[0];
                     a_y = event.values[1];
                     a_z = event.values[2];
+
+                    fAccell = event.values.clone();
 
                     //pseudo time
                     a_time = System.currentTimeMillis() + deltaTime;
@@ -536,7 +565,7 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
                         k.printStackTrace();
                     }
 
-                    if (countAccel % 10 == 0) {
+                    if (countAccel % 5 == 0) {
                         GPS_time = System.currentTimeMillis() + deltaTime;
                         ;
                         data_GPS = GPS_time + "," + latitude + "," + longitude + "\n";
@@ -600,6 +629,36 @@ public class MainActivity extends Activity implements GoogleApiClient.Connection
                         k.printStackTrace();
                     } catch (IOException k) {
                         k.printStackTrace();
+                    }
+                }
+
+                if(event.sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD){
+                    fMagnetic = event.values.clone();
+                    if(fAccell != null && fMagnetic != null) {
+                        m_Time = System.currentTimeMillis() + deltaTime;
+                        // 回転行列
+                        SensorManager.getRotationMatrix(inR, I, fAccell, fMagnetic);
+                        // ワールド座標とデバイス座標のマッピングを変換する
+                        SensorManager.remapCoordinateSystem(inR, SensorManager.AXIS_X, SensorManager.AXIS_Y, outR);
+                        // 姿勢
+                        float[] fAttitude = new float[3];
+                        SensorManager.getOrientation(outR, fAttitude);
+
+                        for (int i = 0; i < 3; i++) {
+                            fAttitude[i] = (float) (fAttitude[i] * 180 / Math.PI);
+                            fAttitude[i] = (fAttitude[i] < 0) ? fAttitude[i] + 360 : fAttitude[i];
+                        }
+
+                        data_M = m_Time + "," + fAttitude[0] + "," + fAttitude[1] + "," + fAttitude[2] + "\n";
+                        try {
+                            bw_M.write(data_M);
+                        } catch (UnsupportedEncodingException k) {
+                            k.printStackTrace();
+                        } catch (FileNotFoundException k) {
+                            k.printStackTrace();
+                        } catch (IOException k) {
+                            k.printStackTrace();
+                        }
                     }
                 }
             }
